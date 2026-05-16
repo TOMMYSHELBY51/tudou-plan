@@ -1,4 +1,4 @@
-const dogFoodRecommendations = {
+export const dogFoodRecommendations = {
   puppy: {
     name: "幼犬粮",
     description: "专为成长发育期的小狗设计",
@@ -81,7 +81,7 @@ const dogFoodRecommendations = {
   }
 };
 
-const analyzeDogFood = (answers) => {
+export const analyzeDogFood = (answers) => {
   const recommendations = [];
   const breedSize = answers.breed_size;
   const age = answers.age;
@@ -130,7 +130,7 @@ const analyzeDogFood = (answers) => {
   });
 };
 
-const generateRecommendText = (answers, dogName) => {
+export const generateRecommendText = (answers, dogName) => {
   const age = answers.age;
   const breedSize = answers.breed_size;
   const activityLevel = answers.activity_level;
@@ -182,10 +182,4 @@ const generateRecommendText = (answers, dogName) => {
   text += `4. 保持充足的新鲜饮水\n`;
 
   return text;
-};
-
-module.exports = {
-  dogFoodRecommendations,
-  analyzeDogFood,
-  generateRecommendText
 };
