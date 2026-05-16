@@ -10,6 +10,7 @@ import { JSONFile } from 'lowdb/node';
 import { analyzeStoolImage } from './aiService.js';
 import { scoreDogFood } from './dogFoodScorer.js';
 import popularDogFoods from './dogFoodData.js';
+import { analyzeDogFood, generateRecommendText } from './dogFoodRecommender.js';
 
 config();
 
@@ -546,6 +547,65 @@ app.post('/api/community/posts/:id/like', async (req, res) => {
     res.json({ likes: db.data.community_posts[postIndex].likes });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/dog-foods/recommend', async (req, res) => {
+  try {
+    await db.read();
+    const { answers, dog_name } = req.body;
+    
+    const recommendations = analyzeDogFood(answers);
+    const recommendText = generateRecommendText(answers, dog_name);
+    
+    const matchedFoods = [];
+    for (const rec of recommendations) {
+      let matched = db.data.dog_food_products.filter(food => {
+        const features = food.features.toLowerCase();
+        if (rec.name.includes('幼犬') && features.includes('幼犬')) return true;
+        if (rec.name.includes('老年') && features.includes('老年')) return true;
+        if (rec.name.includes('小型') && features.includes('小型')) return true;
+        if (rec.name.includes('无谷') && features.includes('无谷')) return true;
+        if (rec.name.includes('皮肤敏感') && features.includes('低敏')) return true;
+        if (rec.name.includes('肠胃敏感') && features.includes('益生菌')) return true;
+        if (rec.name.includes('活动量') && features.includes('高蛋白')) return true;
+        return false;
+      });
+      matchedFoods.push(...matched);
+    }
+    
+    const uniqueFoods = matchedFoods.filter((food, index, self) => 
+      index === self.findIndex(f => f.id === food.id)
+    );
+    
+    const weights = db.data.scoring_weights.sort((a, b) => 
+      new Date(b.updated_at) - new Date(a.updated_at)
+    )[0] || {
+      protein_weight: 30,
+      fat_weight: 20,
+      fiber_weight: 15,
+      ash_weight: 10,
+      moisture_weight: 10,
+      price_weight: 15
+    };
+    
+    const scoredFoods = await Promise.all(
+      uniqueFoods.map(async (food) => {
+        const scoreResult = await scoreDogFood(food, weights);
+        return { ...food, score: scoreResult };
+      })
+    );
+    
+    scoredFoods.sort((a, b) => b.score.total_score - a.score.total_score);
+    
+    res.json({
+      recommendations,
+      recommendText,
+      matchedFoods: scoredFoods.slice(0, 5)
+    });
+  } catch (error) {
+    console.error('Recommendation error:', error);
+    res.status(500).json({ error: '推荐失败' });
   }
 });
 
